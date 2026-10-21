@@ -1,16 +1,16 @@
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import AppRoutes from '../src/AppRoutes';
 import { takeRegistrationHandoff } from '../src/lib/registrationHandoff';
 
 const auth = vi.hoisted(() => ({ user: null, configured: true, loading: false, refreshUser: vi.fn(), signOut: vi.fn() }));
-const api = vi.hoisted(() => ({ signUp: vi.fn(), signInWithPassword: vi.fn() }));
+const api = vi.hoisted(() => ({ signUp: vi.fn(), signInWithPassword: vi.fn(), invoke: vi.fn() }));
 vi.mock('../src/context/AuthContext', () => ({ useAuth: () => auth }));
 vi.mock('../src/lib/supabase', () => ({
-  supabase: { auth: { signInWithPassword: api.signInWithPassword } },
+  supabase: { auth: { signInWithPassword: api.signInWithPassword }, functions: { invoke: api.invoke } },
   createRegistrationClient: () => ({ auth: { signUp: api.signUp } }),
 }));
 let location;
@@ -31,6 +31,11 @@ async function signup(passwordConfirmation = 'example-test-only') {
     await user.click(screen.getByPlaceholderText(placeholder));
     await user.paste(value);
   }
+  fireEvent.change(screen.getByLabelText('Mobile number'), { target: { value: '3001234567' } });
+  await user.click(screen.getByRole('button', { name: 'Send SMS code' }));
+  fireEvent.change(await screen.findByLabelText('SMS verification code'), { target: { value: '123456' } });
+  await user.click(screen.getByRole('button', { name: 'Verify code' }));
+  await screen.findByText('Mobile verified');
   await user.click(screen.getByRole('button', { name: 'Create my account' }));
 }
 beforeEach(() => {
@@ -38,6 +43,7 @@ beforeEach(() => {
   auth.refreshUser.mockReset().mockResolvedValue(undefined);
   api.signUp.mockReset().mockResolvedValue({ data: { user: { id: 'u1', identities: [{}] }, session: null }, error: null });
   api.signInWithPassword.mockReset();
+  api.invoke.mockReset().mockImplementation(async (_name, { body }) => ({ data: body.action === 'send' ? { id: '11111111-1111-4111-8111-111111111111', secret: 'a'.repeat(64), expiresAt: Date.now()+600000 } : { verified: true, phone: '+923001234567' }, error: null }));
   takeRegistrationHandoff(); localStorage.clear(); sessionStorage.clear();
   window.scrollTo = vi.fn();
 });

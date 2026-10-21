@@ -115,7 +115,7 @@ test('signed-in users change their password directly without an email or browser
   expect(await screen.findByRole('heading', { name: 'Welcome back, cadet.' })).toBeTruthy();
   expect(location.pathname).toBe('/login');
   expect(auth.signOut).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole('status').textContent).toContain('Log in with your new password');
+  await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Log in with your new password'));
   expect(screen.getByPlaceholderText('Enter your password').value).toBe('');
   expect(api.updateUser).toHaveBeenCalledWith({ password: 'new-test-password' });
   expect(api.resetPasswordForEmail).not.toHaveBeenCalled();

@@ -1,0 +1,9 @@
+project_id = "pma-cadet-portal"
+
+[functions.issb-reminders]
+# @supabase/server verifies the scheduler's secret key in the apikey header.
+verify_jwt = false
+
+[functions.phone-verification]
+# The wrapper verifies the public project key for signup SMS requests.
+verify_jwt = false

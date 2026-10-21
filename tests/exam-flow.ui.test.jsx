@@ -15,7 +15,7 @@ vi.mock('../src/exam/paper', () => ({
 const key = 'cadetprep:u1:verbal';
 function open() {
   return render(<MemoryRouter initialEntries={['/test/verbal']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-    <Routes><Route path="/test/:category" element={<ExamPage />} /></Routes>
+    <Routes><Route path="/test/:category" element={<ExamPage />} /><Route path="/issb" element={<h1>ISSB interview booking</h1>} /></Routes>
   </MemoryRouter>);
 }
 async function start() {
@@ -225,3 +225,19 @@ test('unavailable browser storage prevents starting an untracked attempt', () =>
   expect(screen.queryByRole('heading', { name: /Question 1/ })).toBeNull();
   expect(store.upsert).not.toHaveBeenCalled();
 });
+
+
+test('passing all categories keeps the completed result visible without forcing ISSB navigation', async () => {
+  const prior = ['nonverbal', 'academic'].map(category => ({ id: `passed-${category}`, category, correct: 64, incorrect: 21, unanswered: 0, reason: 'complete', finished: Date.now(), duration: 60000 }));
+  localStorage.setItem('cadetprep:u1:history', JSON.stringify(prior));
+  await start();
+  for (let index = 0; index < 85; index++) {
+    fireEvent.click(document.querySelector('.exam-option'));
+    if (index < 84) fireEvent.click(document.querySelector('.exam-question .exam-actions .btn-dark'));
+  }
+  expect(screen.queryByRole('heading', { name: 'ISSB interview booking' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Submit test' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Submit result' }));
+  expect(await screen.findByRole('heading', { name: 'Congratulations, Ahmad! Best of luck ahead.' })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'ISSB interview booking' })).toBeNull();
+}, 15000);

@@ -6,6 +6,8 @@ import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import CadetProfile from './pages/CadetProfile';
 import TestHistory from './pages/TestHistory';
+import IssbPage from './pages/IssbPage';
+import InterviewReminder from './components/InterviewReminder';
 import PasswordRecoveryPage from './pages/PasswordRecoveryPage';
 import { useAuth } from './context/AuthContext';
 
@@ -56,7 +58,9 @@ export default function AppRoutes() {
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard key={location.key} /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><CadetProfile key={location.key} /></ProtectedRoute>} />
     <Route path="/progress" element={<ProtectedRoute><TestHistory key={`${user?.id}:${location.key}`} /></ProtectedRoute>} />
+    <Route path="/issb" element={<ProtectedRoute><IssbPage key={`${user?.id}:${location.key}`} /></ProtectedRoute>} />
+    <Route path="/issb/preview" element={<Navigate to="/issb" replace />} />
     <Route path="/test/:category" element={<ProtectedRoute><Suspense fallback={<div className="center-loading">Preparing your training workspace…</div>}><ExamPage /></Suspense></ProtectedRoute>} />
     <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes></>;
+  </Routes><InterviewReminder /></>;
 }

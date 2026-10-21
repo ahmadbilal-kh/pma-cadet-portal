@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import AppRoutes from '../src/AppRoutes';
 
 const auth = vi.hoisted(() => ({ user: null, loading: false, configured: true, updateProfile: vi.fn(), updateAvatar: vi.fn(), avatarUrl: '', refreshUser: vi.fn(), signOut: vi.fn() }));
+vi.mock('../src/lib/supabase', () => ({ supabase: null }));
 vi.mock('../src/context/AuthContext', () => ({ useAuth: () => auth }));
 function open(path = '/profile') {
   return render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AppRoutes /></MemoryRouter>);
@@ -159,4 +160,12 @@ test('a pending save prevents duplicate submissions', async () => {
   expect(auth.updateProfile).toHaveBeenCalledTimes(1);
   await act(async () => { finish({ ...auth.user, user_metadata: { full_name: 'Ali Khan' } }); });
   await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
+});
+
+
+test('Cadet Profile has no mobile field or SMS verification section', () => {
+  open();
+  expect(screen.queryByLabelText('Mobile number')).toBeNull();
+  expect(screen.queryByText('Your mobile number')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Send SMS code' })).toBeNull();
 });

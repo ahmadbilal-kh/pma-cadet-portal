@@ -1,5 +1,7 @@
 # Authentication setup notes
 
+New signup now requires mobile SMS verification. Apply the SQL and Edge Function setup in [supabase/PHONE_VERIFICATION_SETUP.md](supabase/PHONE_VERIFICATION_SETUP.md) before using the new signup flow. Email/password login and recovery for existing accounts continue to work.
+
 ## Forgotten passwords and email verification codes
 
 The login page's **Forgot password?** link opens `/reset-password`. Signed-out users enter their registered email, request a recovery code, and enter the code from their email. Only successful Supabase recovery verification creates the session needed for the new-password form. The current password is no longer requested. `/forgot-password` redirects to the same page. Emails are requested only when the user submits the form, never on page load.

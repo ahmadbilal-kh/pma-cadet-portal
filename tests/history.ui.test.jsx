@@ -129,7 +129,7 @@ test.each([
 
 test('the test-selection popup supports keyboard closing and can be reopened', async () => {
   open(); await loaded();
-  expect(document.body.style.overflow).toBe('hidden');
+  await waitFor(() => expect(document.body.style.overflow).toBe('hidden'));
   const dialog = screen.getByRole('dialog', { name: "Let's start the test" });
   expect(dialog.contains(document.activeElement)).toBe(true);
   within(dialog).getAllByRole('link').at(-1).focus();

@@ -8,6 +8,7 @@ Independent preparation platform; not affiliated with Pakistan Military Academy 
 
 - Public landing page and a protected dashboard for signed-in cadets.
 - Signup, login, email-code password recovery, and automatic return to login after a password change.
+- Mobile SMS verification for signup only; [SMS service setup](supabase/PHONE_VERIFICATION_SETUP.md) is required before real codes can be sent.
 - Cadet profiles with editable names and private profile-photo uploads.
 - Separate Verbal Intelligence, Non-Verbal Intelligence, and Academic Preparation tests.
 - A stored bank of 515 questions, extended with generated practice variants.
@@ -16,6 +17,8 @@ Independent preparation platform; not affiliated with Pakistan Military Academy 
 - Interactive progress charts, category averages, test history, filters, and pagination.
 - Account-owned results in Supabase, with browser history available when account saving is unavailable.
 - A first-test popup offering all three training areas to cadets without completed tests.
+- ISSB preparation for every signed-in cadet, with interview booking, a designed calendar, scheduled start times, and in-app reminders.
+- A prepared server-side email reminder queue; see the additional setup below before enabling delivery.
 - Responsive desktop and mobile layouts.
 
 ## Requirements
@@ -97,6 +100,8 @@ For verification-code recovery:
 SMTP credentials belong in Supabase's SMTP settings, not in this repository. Email delivery limits and the minimum interval between requests still apply.
 
 ## 4. Run locally
+
+ISSB and Cadet Profile do not collect or require phone numbers. For ISSB account booking and email reminders, follow [`supabase/ISSB_SETUP.md`](supabase/ISSB_SETUP.md). Run the additional booking SQL and configure the reminder function and scheduler to enable email delivery. Local-only bookings are clearly labeled in the app.
 
 ```powershell
 npm.cmd run dev
