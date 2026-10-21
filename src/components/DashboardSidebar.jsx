@@ -18,11 +18,11 @@ export default function DashboardSidebar() {
         <NavLink to="/dashboard" end replace className={linkClass} title="Home"><House size={19} /> Home</NavLink>
         <NavLink to="/profile" className={linkClass} title="Cadet Profile"><UserRound size={19} /> Cadet Profile</NavLink>
         <NavLink to="/progress" className={linkClass} title="History & Progress"><BarChart3 size={19} /> History & Progress</NavLink>
-        <NavLink to="/issb" className={linkClass} title="ISSB Interview"><Mic size={19} /> ISSB Interview</NavLink>
         <div className="sidebar-caption" style={{ marginTop: 34 }}>TRAINING AREAS</div>
         {trainingLinks.map(({ to, title, icon: Icon }) =>
           <NavLink to={to} className={linkClass} title={title} key={to}><Icon size={19} />{title}</NavLink>
         )}
+        <NavLink to="/issb" className={linkClass} title="ISSB Interview"><Mic size={19} /> ISSB Interview</NavLink>
       </nav>
     </div>
     <div className="sidebar-foot"><ShieldCheck size={18} /> DISCIPLINE · FOCUS · PROGRESS <small>Independent practice platform</small></div>

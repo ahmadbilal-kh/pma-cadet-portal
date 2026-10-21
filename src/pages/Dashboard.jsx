@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ArrowRight,
-  BarChart3,
   BookOpen,
   BrainCircuit,
   CalendarDays,
@@ -204,8 +203,6 @@ export default function Dashboard() {
               ),
             )}
           </div>
-          <Link className="history-dashboard-link" to="/progress"><span className="history-stat-icon"><BarChart3 size={23} /></span><span><strong>See your progress</strong><small>Explore your test history, scores, and training trends.</small></span><ArrowRight size={20} /></Link>
-          <Link className="history-dashboard-link" to="/issb"><span className="history-stat-icon"><CalendarDays size={23} /></span><span><strong>Your ISSB interview journey</strong><small>Schedule your mock interview and prepare at your own pace.</small></span><ArrowRight size={20} /></Link>
           <div className="dashboard-note">
             <div className="note-icon">
               <UserRound size={20} />
