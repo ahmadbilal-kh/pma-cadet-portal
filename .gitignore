@@ -1,0 +1,29 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Keep only the public configuration template in version control.
+.env*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local previews, browser profiles, backups, and editor caches.
+.tmp/
+artifacts/
+reference/
+.vs/
+.vscode/
+.idea/
+.agents/
+.codex/
+.aws/
+skills-lock.json
+.DS_Store
+Thumbs.db
+*.log
+*.zip
