@@ -32,7 +32,7 @@ test('the actual app entry point mounts home, login, and email-code recovery rou
   window.scrollTo = vi.fn();
   await act(async () => { await import('../src/main.jsx'); });
   expect(await screen.findByRole('heading', { name: /Train your mind/ })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Refresh' }).className).toBe('reload-btn');
+  expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull();
   expect(screen.getAllByRole('link', { name: /View past papers for/ })).toHaveLength(3);
   await userEvent.click(screen.getByRole('link', { name: 'Log in', exact: true }));
   expect(await screen.findByRole('heading', { name: 'Welcome back, cadet.' })).toBeTruthy();

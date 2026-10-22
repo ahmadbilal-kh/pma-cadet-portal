@@ -3,6 +3,7 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import AppRoutes from '../src/AppRoutes';
+import ReloadButton from '../src/components/ReloadButton';
 
 const auth = vi.hoisted(() => ({
   user: { id: 'cadet-1', email: 'cadet@example.test', user_metadata: { full_name: 'Ahmad Bilal' } },
@@ -71,7 +72,8 @@ test('signed-out home shows the public landing page and account links', () => {
   const router = open('/');
   expect(router.state.location.pathname).toBe('/');
   expect(screen.getByRole('heading', { name: /Train your mind/ })).toBeTruthy();
-  expect(screen.getByRole('link', { name: 'Create an account' }).getAttribute('href')).toBe('/signup');
+  expect(screen.getByRole('link', { name: 'Get started' }).getAttribute('href')).toBe('/signup');
+  expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull();
   expect(screen.queryByRole('navigation', { name: 'Workspace navigation' })).toBeNull();
 });
 
@@ -116,6 +118,7 @@ test('Home clears stale dashboard state even when already on the dashboard', asy
 test('Refresh loads new account data without changing the route and prevents duplicate clicks', async () => {
   auth.user = null;
   const router = open('/');
+  render(<ReloadButton />);
   await waitFor(() => expect(auth.refreshUser).toHaveBeenCalledTimes(1));
   let finishRefresh;
   auth.refreshUser.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
@@ -130,6 +133,7 @@ test('Refresh loads new account data without changing the route and prevents dup
 test('a failed manual refresh shows an error and can be retried', async () => {
   auth.user = null;
   open('/');
+  render(<ReloadButton />);
   await waitFor(() => expect(auth.refreshUser).toHaveBeenCalledTimes(1));
   auth.refreshUser.mockRejectedValueOnce(new Error('Offline'));
   await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));

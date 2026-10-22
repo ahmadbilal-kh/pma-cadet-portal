@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import Brand from "../components/Brand";
-import ReloadButton from "../components/ReloadButton";
 import { useAuth } from "../context/AuthContext";
 
 const features = [
@@ -42,7 +41,6 @@ export default function LandingPage() {
       <header className="site-nav container">
         <Brand />
         <nav className="nav-actions" aria-label="Primary navigation">
-          <ReloadButton />
           {user ? (
             <Link className="btn btn-dark btn-sm" to="/dashboard">
               My Dashboard <ArrowRight size={16} />
@@ -53,7 +51,7 @@ export default function LandingPage() {
                 Log in
               </Link>
               <Link className="btn btn-dark btn-sm" to="/signup">
-                Create an account <ArrowRight size={16} />
+                Get started <ArrowRight size={16} />
               </Link>
             </>
           )}
