@@ -8,7 +8,7 @@ Independent preparation platform; not affiliated with Pakistan Military Academy 
 
 - Public landing page and a protected dashboard for signed-in cadets.
 - Signup, login, email-code password recovery, and automatic return to login after a password change.
-- Mobile SMS verification for signup only; [SMS service setup](supabase/PHONE_VERIFICATION_SETUP.md) is required before real codes can be sent.
+- Signup requires a full name, email, password, and matching confirmation password. No phone number or SMS verification is required. If the earlier SMS signup gate was installed, run [remove-signup-phone-verification.sql](supabase/remove-signup-phone-verification.sql) in Supabase SQL Editor.
 - Cadet profiles with editable names and private profile-photo uploads.
 - Separate Verbal Intelligence, Non-Verbal Intelligence, and Academic Preparation tests.
 - A stored bank of 515 questions, extended with generated practice variants.
@@ -181,3 +181,7 @@ scripts/        Question-bank maintenance tools
 Scores and deadlines are computed in the browser; saved summaries are client-reported. This app is for practice, not secure examination or proctoring. Bundled question answer keys can be inspected.
 
 Leaving or reloading an unfinished test abandons it without adding a result. New completed attempts are retained in browser history and saved to the account when available. Local history and seen-question tracking are specific to an account in that browser; clearing browser storage removes those local records. Older unsaved results that were overwritten before history archiving was added cannot be recovered.
+
+## AI voice interviews
+
+ISSB uses a fullscreen AI voice interview with camera/microphone setup and a speaker check. Set up the account-owned attempt tables, Supabase Edge Function, and private OpenAI API key using [AI_INTERVIEW_SETUP.md](supabase/AI_INTERVIEW_SETUP.md). No private provider key belongs in the frontend.

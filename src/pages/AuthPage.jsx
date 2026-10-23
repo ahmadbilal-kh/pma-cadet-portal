@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound, AlertCircle } from 'lucide-react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Brand from '../components/Brand';
-import PhoneVerification from '../components/PhoneVerification';
 import { useAuth } from '../context/AuthContext';
 import { supabase, createRegistrationClient } from '../lib/supabase';
 import { loginAccount, normalizeEmail, registerAccount, validateRegistration } from '../lib/registration';
@@ -14,8 +13,6 @@ export default function AuthPage({ mode }) {
   const location = useLocation();
   const { user, configured, loading } = useAuth();
   const [fullName,setFullName]=useState('');
-  const [phone, setPhone] = useState({ country: 'PK', phone: '' });
-  const [phoneProof, setPhoneProof] = useState(null);
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [confirmPassword,setConfirmPassword]=useState('');
@@ -50,7 +47,7 @@ export default function AuthPage({ mode }) {
         validateRegistration({ fullName, email: cleanEmail, password, confirmPassword });
         const registrationClient = createRegistrationClient();
         const { confirmationRequired } = await registerAccount(registrationClient, {
-          fullName, email: cleanEmail, password, phoneProof, origin: window.location.origin,
+          fullName, email: cleanEmail, password, origin: window.location.origin,
         });
         setRegistrationHandoff(cleanEmail, password);
         setPassword(''); setConfirmPassword('');
@@ -89,7 +86,6 @@ export default function AuthPage({ mode }) {
         <form onSubmit={handleSubmit} className="auth-form">
           {isSignup && <label className="field-label">Full name<div className="input-wrap"><UserRound size={19}/><input autoComplete="name" type="text" placeholder="Enter your full name" minLength={2} maxLength={80} required value={fullName} onChange={e=>setFullName(e.target.value)}/></div></label>}
           <label className="field-label">Email address<div className="input-wrap"><Mail size={19}/><input autoComplete="username" type="email" placeholder="you@example.com" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)}/></div></label>
-          {isSignup && <PhoneVerification client={supabase} country={phone.country} phone={phone.phone} email={email} purpose="registration" onChange={setPhone} onVerified={setPhoneProof} />}
           <label className="field-label">Password<div className="input-wrap"><LockKeyhole size={19}/><input type={showPassword?'text':'password'} autoComplete={isSignup?'new-password':'current-password'} placeholder={isSignup?'Create a strong password':'Enter your password'} required minLength={isSignup?8:1} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)}/><button type="button" className="input-icon-btn" onClick={()=>setShowPassword(x=>!x)} aria-label={showPassword?'Hide password':'Show password'} aria-pressed={showPassword}>{showPassword?<Eye size={19}/>:<EyeOff size={19}/>}</button></div></label>
           {isSignup && <label className="field-label">Confirm password<div className="input-wrap"><LockKeyhole size={19}/><input type={showConfirmPassword?'text':'password'} autoComplete="new-password" placeholder="Enter your password again" required minLength={8} maxLength={128} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/><button type="button" className="input-icon-btn" onClick={()=>setShowConfirmPassword(value=>!value)} aria-label={showConfirmPassword?'Hide confirm password':'Show confirm password'} aria-pressed={showConfirmPassword}>{showConfirmPassword?<Eye size={19}/>:<EyeOff size={19}/>}</button></div></label>}
           {isSignup && <p className="password-hint">Use at least 8 characters. Keep your password private.</p>}

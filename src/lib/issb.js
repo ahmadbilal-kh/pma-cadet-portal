@@ -1,5 +1,4 @@
 export { countries } from './countries.js';
-import { createUUID } from './uuid.js';
 
 export const INTERVIEW_WINDOW = 60 * 60 * 1000;
 export const REMINDER_LEAD = 15 * 60 * 1000;
@@ -8,9 +7,9 @@ const key = id => `cadetprep:${id}:issb-booking`;
 export function interviewState(booking, now = Date.now()) {
   if (!booking) return 'none';
   if (booking.status === 'completed') return 'completed';
-  if (now >= booking.startsAt + INTERVIEW_WINDOW) return 'expired';
+  if (booking.status === 'started') return 'started';
   if (now < booking.startsAt) return 'scheduled';
-  return booking.status === 'started' ? 'started' : 'ready';
+  return 'ready';
 }
 export function validateBooking(fields, now = Date.now()) {
   const fullName = fields.fullName?.trim().replace(/\s+/g, ' ') || '';
@@ -52,41 +51,63 @@ export async function loadBooking(client, userId) {
   try {
     const { data, error } = await client.from('issb_bookings').select('*').eq('user_id', userId).maybeSingle();
     if (error) return cached;
-    // An unsynced booking must remain visible until the cadet explicitly retries saving.
-    if (cached && !cached.synced) return cached;
     const booking = normalizeBooking(data);
+    // Reconcile a successful save whose response was lost, without hiding a different local slot.
+    if (cached && !cached.synced && (!booking || !sameAppointment(cached, booking))) return cached;
     if (booking) { try { cacheBooking(userId, booking); } catch { /* Account copy remains available. */ } }
     return booking;
   } catch { return cached; }
 }
-function unavailable(error) {
-  return !error || ['PGRST202', 'PGRST205', '42P01', '42883'].includes(error.code) || /fetch|network/i.test(error.message || '');
+function sameAppointment(left, right) {
+  return left.startsAt === right.startsAt && left.fullName === right.fullName
+    && left.email.toLowerCase() === right.email.toLowerCase() && left.timezone === right.timezone;
+}
+function accountSaveError(error) {
+  if (['PGRST202', 'PGRST205', '42P01', '42883'].includes(error?.code)) {
+    return new Error('Account booking is not set up yet. Run supabase/issb-bookings.sql in your project’s Supabase SQL Editor, then retry saving.');
+  }
+  if (!error || /fetch|network/i.test(error.message || '')) return new Error('Unable to save to your account. Check your connection and try again.');
+  return new Error(error.message || 'Unable to save your interview. Please try again.');
+}
+async function saveToAccount(client, user, details) {
+  if (!user?.id) throw new Error('Please log in again.');
+  if (details.email.toLowerCase() !== user.email?.toLowerCase()) throw new Error('Use the verified email linked to your cadet account.');
+  if (!client?.rpc) throw accountSaveError();
+  let response;
+  try {
+    response = await client.rpc('schedule_issb_interview', { p_full_name: details.fullName,
+      p_starts_at: new Date(details.startsAt).toISOString(), p_timezone: details.timezone });
+  } catch (error) { throw accountSaveError(error); }
+  if (response?.error) throw accountSaveError(response.error);
+  const booking = normalizeBooking(Array.isArray(response?.data) ? response.data[0] : response?.data);
+  if (!booking) throw new Error('The interview could not be saved. Please try again.');
+  try { cacheBooking(user.id, booking); } catch { /* Account copy remains available. */ }
+  return booking;
 }
 export async function saveBooking(client, user, fields, now = Date.now()) {
   const details = validateBooking(fields, now);
-  if (details.email !== user.email?.toLowerCase()) throw new Error('Use the verified email linked to your cadet account.');
-  let booking = { ...details, id: createUUID(), status: 'scheduled', emailSentAt: null, synced: false };
-  if (client?.rpc) {
-    let response;
-    try { response = await client.rpc('schedule_issb_interview', { p_full_name: details.fullName,
-      p_starts_at: new Date(details.startsAt).toISOString(), p_timezone: details.timezone }); }
-    catch (error) { if (!unavailable(error)) throw error; }
-    if (response?.error && !unavailable(response.error)) throw new Error(response.error.message);
-    if (response && !response.error) {
-      booking = normalizeBooking(Array.isArray(response.data) ? response.data[0] : response.data);
-      if (!booking) throw new Error('The interview could not be saved. Please try again.');
-    }
-  }
-  try { return cacheBooking(user.id, booking); }
-  catch { if (booking.synced) return booking; throw new Error('Enable browser storage or restore account saving before booking.'); }
+  return saveToAccount(client, user, details);
 }
-export async function updateInterviewStatus(client, userId, booking, status, now = Date.now()) {
-  if (!['started', 'completed'].includes(status) || !['ready', 'started'].includes(interviewState(booking, now))) throw new Error('The interview is available only during its scheduled hour.');
+export async function retryBookingSave(client, user, pending, now = Date.now()) {
+  const booking = normalizeBooking(pending);
+  if (!booking || booking.synced) throw new Error('Reload your interview schedule before retrying.');
+  if (booking.status !== 'scheduled') throw new Error('Choose a new schedule to save your next interview to your account.');
+  // Use the stored instant and timezone, even if the cadet has travelled since booking.
+  const existing = await loadBooking(client, user.id);
+  if (existing?.synced && sameAppointment(booking, existing)) return existing;
+  if (booking.startsAt <= now) throw new Error('This time has already passed. Reschedule your interview to save it to your account.');
+  return saveToAccount(client, user, booking);
+}
+export async function updateInterviewStatus(client, userId, booking, status) {
+  if (!booking || !['started', 'completed'].includes(status) || !['scheduled', 'started'].includes(booking.status)) throw new Error('Choose an available interview before starting.');
   if (status === 'completed' && booking.status !== 'started') throw new Error('Start the interview before completing it.');
   let updated = { ...booking, status };
   if (booking.synced) {
     const { data, error } = await client.rpc('update_issb_interview_status', { p_booking_id: booking.id, p_status: status });
-    if (error) throw new Error('Unable to update your interview. Check your connection and try again.');
+    if (error) {
+      if (error.code === 'P0001' && /not available at this time/i.test(error.message || '')) throw new Error('Your server still requires the scheduled time. Run supabase/issb-start-anytime.sql in Supabase SQL Editor, then click Start interview again.');
+      throw new Error('Unable to update your interview. Check your connection and try again.');
+    }
     updated = normalizeBooking(Array.isArray(data) ? data[0] : data);
     if (!updated) throw new Error('Your booking changed. Refresh this page before starting.');
   }

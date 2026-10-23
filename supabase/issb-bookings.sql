@@ -52,9 +52,16 @@ begin
   select email into account_email from auth.users where id = account_id and email_confirmed_at is not null;
   if account_email is null then raise exception 'Confirm your account email before booking.'; end if;
   if p_full_name is null or char_length(trim(p_full_name)) not between 2 and 80 then raise exception 'Enter your full name (2 to 80 characters).'; end if;
+  -- Serialize this account's requests and preserve reminder delivery on duplicate retries.
+  perform 1 from auth.users where id = account_id for update;
+  select * into booking from public.issb_bookings where user_id = account_id;
+  if booking.full_name = trim(p_full_name) and booking.starts_at = p_starts_at
+    and booking.timezone = p_timezone and booking.email = lower(account_email) then
+    return booking;
+  end if;
   if p_starts_at is null or p_starts_at <= now() then raise exception 'Choose a future interview date and time.'; end if;
   if not exists (select 1 from pg_catalog.pg_timezone_names where name = p_timezone) then raise exception 'Choose a valid timezone.'; end if;
-  if exists(select 1 from public.issb_bookings where user_id = account_id and status = 'started' and starts_at + interval '1 hour' > now()) then
+  if exists(select 1 from public.issb_bookings where user_id = account_id and status = 'started') then
     raise exception 'Complete your current interview before scheduling another.';
   end if;
   insert into public.issb_bookings(user_id,full_name,email,starts_at,timezone)
@@ -74,7 +81,6 @@ begin
   if p_status not in ('started','completed') or p_status is null then raise exception 'Invalid interview status.'; end if;
   update public.issb_bookings set status = p_status
   where user_id = auth.uid() and id = p_booking_id
-    and starts_at <= now() and starts_at + interval '1 hour' > now()
     and ((p_status = 'started' and status in ('scheduled','started')) or (p_status = 'completed' and status = 'started'))
   returning * into booking;
   if booking.id is null then raise exception 'Your interview is not available at this time.'; end if;

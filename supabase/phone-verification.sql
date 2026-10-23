@@ -73,35 +73,14 @@ begin
 end;
 $$;
 
--- Consume the server-verified proof atomically with account creation. Direct
--- Auth signups cannot bypass verification by changing browser metadata.
-create or replace function public.require_signup_phone_verification()
-returns trigger language plpgsql security definer set search_path = '' as $$
-declare proof public.phone_verifications;
-begin
-  if new.email is null then raise exception 'Register using email and a verified mobile number.'; end if;
-  update public.phone_verifications set consumed_at = now(), user_id = new.id
-  where id = (new.raw_user_meta_data ->> 'phone_verification_id')::uuid
-    and secret_hash = encode(extensions.digest(new.raw_user_meta_data ->> 'phone_verification_secret','sha256'),'hex')
-    and purpose = 'registration' and user_id is null and consumed_at is null
-    and verified_at is not null and expires_at > now() and email = lower(new.email)
-    and phone = new.raw_user_meta_data ->> 'phone_number'
-  returning * into proof;
-  if proof.id is null then raise exception 'Verify your mobile number before registering.'; end if;
-  new.raw_user_meta_data := (new.raw_user_meta_data - 'phone_verification_id' - 'phone_verification_secret')
-    || jsonb_build_object('phone_number',proof.phone,'phone_verified',true);
-  return new;
-end;
-$$;
+-- Signup now uses email/password without a mobile verification requirement.
 drop trigger if exists require_cadet_signup_phone on auth.users;
-create trigger require_cadet_signup_phone before insert on auth.users
-for each row execute function public.require_signup_phone_verification();
+drop function if exists public.require_signup_phone_verification();
 
 revoke all on function public.issue_phone_challenge(uuid,text,text,text,text,uuid,text) from public,anon,authenticated;
 grant execute on function public.issue_phone_challenge(uuid,text,text,text,text,uuid,text) to service_role;
 revoke all on function public.take_phone_verification_attempt(uuid,text,text,text,uuid) from public,anon,authenticated;
 grant execute on function public.take_phone_verification_attempt(uuid,text,text,text,uuid) to service_role;
-revoke all on function public.require_signup_phone_verification() from public,anon,authenticated;
 
 
 -- Remove the earlier profile editing RPC; existing phone records are not exposed by the app.

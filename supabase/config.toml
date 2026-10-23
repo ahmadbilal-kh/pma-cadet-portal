@@ -1,5 +1,9 @@
 project_id = "pma-cadet-portal"
 
+[functions.issb-ai-interview]
+# The wrapper verifies the user's JWT via the project JWKS.
+verify_jwt = false
+
 [functions.issb-reminders]
 # @supabase/server verifies the scheduler's secret key in the apikey header.
 verify_jwt = false

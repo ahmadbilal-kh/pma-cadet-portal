@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { internationalPhone, requirePhoneProof } from '../src/lib/phoneVerification.js';
-import { registerAccount } from '../src/lib/registration.js';
 import { handlePhoneVerification } from '../supabase/functions/phone-verification/handler.js';
 
 const id = '11111111-1111-4111-8111-111111111111', secret = 'a'.repeat(64);
@@ -12,9 +11,6 @@ test('phone normalization and proof validation reject changed, expired, missing 
   const proof = { id, secret, phone, email, expiresAt: Date.now()+60000, verified: true };
   assert.equal(requirePhoneProof(proof,phone,email),proof);
   for (const change of [{ verified: false }, { preview: true }, { expiresAt: 0 }, { expiresAt: undefined }, { phone: '+923009999999' }, { email: 'other@example.test' }]) assert.throws(() => requirePhoneProof({ ...proof, ...change },phone,email),/Verify your mobile/);
-});
-test('signup without a verified phone never calls the account service', async () => {
-  await assert.rejects(registerAccount({ auth: { signUp: () => assert.fail('must not create account') } }, { fullName: 'Ahmad Bilal', email, password: 'test-only-password', origin: 'http://localhost' }), /Verify your mobile/);
 });
 const settings = { accountSid: 'test-account', authToken: 'test-token', serviceSid: 'test-service' };
 test('SMS service rejects missing configuration and non-registration requests without sending', async () => {

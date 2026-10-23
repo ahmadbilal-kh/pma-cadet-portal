@@ -31,11 +31,6 @@ async function signup(passwordConfirmation = 'example-test-only') {
     await user.click(screen.getByPlaceholderText(placeholder));
     await user.paste(value);
   }
-  fireEvent.change(screen.getByLabelText('Mobile number'), { target: { value: '3001234567' } });
-  await user.click(screen.getByRole('button', { name: 'Send SMS code' }));
-  fireEvent.change(await screen.findByLabelText('SMS verification code'), { target: { value: '123456' } });
-  await user.click(screen.getByRole('button', { name: 'Verify code' }));
-  await screen.findByText('Mobile verified');
   await user.click(screen.getByRole('button', { name: 'Create my account' }));
 }
 beforeEach(() => {
@@ -43,7 +38,7 @@ beforeEach(() => {
   auth.refreshUser.mockReset().mockResolvedValue(undefined);
   api.signUp.mockReset().mockResolvedValue({ data: { user: { id: 'u1', identities: [{}] }, session: null }, error: null });
   api.signInWithPassword.mockReset();
-  api.invoke.mockReset().mockImplementation(async (_name, { body }) => ({ data: body.action === 'send' ? { id: '11111111-1111-4111-8111-111111111111', secret: 'a'.repeat(64), expiresAt: Date.now()+600000 } : { verified: true, phone: '+923001234567' }, error: null }));
+  api.invoke.mockReset().mockRejectedValue(new Error('SMS must not be called during signup'));
   takeRegistrationHandoff(); localStorage.clear(); sessionStorage.clear();
   window.scrollTo = vi.fn();
 });
@@ -55,6 +50,7 @@ test.each([true, false])('signup prefills login in StrictMode (email confirmatio
   await signup();
   await screen.findByRole('heading', { name: 'Welcome back, cadet.' });
   expect(location.pathname).toBe('/login');
+  expect(api.invoke).not.toHaveBeenCalled();
   await waitFor(() => expect(screen.getByPlaceholderText('you@example.com').value).toBe('cadet@example.test'));
   await waitFor(() => expect(screen.getByPlaceholderText('Enter your password').value).toBe('example-test-only'));
   expect(screen.getByRole('status').textContent).toContain(confirmationRequired ? 'Confirm your email' : 'Account created successfully');
@@ -126,4 +122,12 @@ test('signup credentials can be submitted from the prefilled login to reach the 
   await waitFor(() => expect(location.pathname).toBe('/dashboard'));
   expect(screen.getByRole('heading', { name: /Welcome, Ahmad/ })).toBeTruthy();
   expect(api.signInWithPassword).toHaveBeenCalledWith({ email: 'cadet@example.test', password: 'example-test-only' });
+});
+
+ test('signup contains no mobile number or SMS verification controls', () => {
+  open();
+  expect(screen.queryByLabelText('Mobile number')).toBeNull();
+  expect(screen.queryByLabelText('SMS verification code')).toBeNull();
+  expect(screen.queryByRole('button', {name:'Send SMS code'})).toBeNull();
+  expect(screen.getByRole('button', {name:'Create my account'}).disabled).toBe(false);
 });

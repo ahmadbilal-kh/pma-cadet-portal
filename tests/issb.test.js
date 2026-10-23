@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBooking, interviewState, INTERVIEW_WINDOW, normalizeBooking, readBooking, saveBooking, updateInterviewStatus } from '../src/lib/issb.js';
+import { validateBooking, interviewState, INTERVIEW_WINDOW, normalizeBooking, readBooking, saveBooking, retryBookingSave, loadBooking, cacheBooking, updateInterviewStatus } from '../src/lib/issb.js';
 import { sendInterviewReminders } from '../supabase/functions/issb-reminders/worker.js';
 
 const now = Date.now();
@@ -14,19 +14,22 @@ test('booking normalizes names, email and a future appointment without requiring
   assert.equal(booking.startsAt, new Date('2099-01-01T10:30').getTime());
   for (const invalid of [{ fullName: '' }, { email: 'invalid' }, { date: '2000-01-01' }, { time: '' }]) assert.throws(() => validateBooking({ ...fields, ...invalid }, now));
 });
-test('interview availability includes the selected time and expires after one hour', () => {
+test('practice can start before or after its scheduled time and started sessions stay open', () => {
   const booking = { startsAt: now, status: 'scheduled' };
   assert.equal(interviewState(booking, now - 1), 'scheduled');
   assert.equal(interviewState(booking, now), 'ready');
   assert.equal(interviewState({ ...booking, status: 'started' }, now + 1), 'started');
-  assert.equal(interviewState(booking, now + INTERVIEW_WINDOW), 'expired');
+  assert.equal(interviewState(booking, now + INTERVIEW_WINDOW), 'ready');
+  assert.equal(interviewState({ ...booking, status: 'started' }, now - 1), 'started');
+  assert.equal(interviewState({ ...booking, status: 'started' }, now + INTERVIEW_WINDOW), 'started');
   assert.equal(interviewState({ ...booking, status: 'completed' }, now + INTERVIEW_WINDOW), 'completed');
 });
-test('booking requires its account email; early start does not contact server', async () => {
+test('booking requires its account email and invalid transitions never contact the server', async () => {
   const user = { id: 'u1', email: 'cadet@example.test' };
   await assert.rejects(saveBooking(null, user, { ...fields, email: 'someone@example.test' }), /verified email/);
   let calls = 0;
-  await assert.rejects(updateInterviewStatus({ rpc: () => { calls++; } }, user.id, { id: 'b1', startsAt: now + 60000, status: 'scheduled', synced: true }, 'started', now), /scheduled hour/);
+  await assert.rejects(updateInterviewStatus({ rpc: () => { calls++; } }, user.id, { id: 'b1', startsAt: now + 60000, status: 'completed', synced: true }, 'started'), /available interview/);
+  await assert.rejects(updateInterviewStatus({ rpc: () => { calls++; } }, user.id, { id: 'b1', startsAt: now + 60000, status: 'scheduled', synced: true }, 'completed'), /Start the interview/);
   assert.equal(calls, 0);
 });
 test('email queue does not claim or send reminders without server settings', async () => {
@@ -63,6 +66,40 @@ test('damaged booking data cannot crash the schedule page', () => {
   assert.equal(normalizeBooking({ id: 'b1', status: 'scheduled', startsAt: now }), null);
   assert.equal(normalizeBooking({ id: 'b1', status: 'scheduled', startsAt: now, firstName: 'Ahmad', lastName: 'Bilal', email: 'cadet@example.test', phone: '+923001234567', country: 'PK', timezone: 'Not/A-Timezone' }), null);
   assert.throws(() => validateBooking({ ...fields, date: '2099-02-31' }, now), /future interview/);
+});
+test('failed account saves preserve local data; retry keeps its instant and reconciles lost responses', async context => {
+  const descriptors = ['window', 'localStorage'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]);
+  const entries = new Map();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value) } });
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { dispatchEvent: () => {} } });
+  context.after(() => { for (const [name, descriptor] of descriptors) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; } });
+  const user = { id: 'u1', email: 'cadet@example.test' };
+  const pending = { ...validateBooking(fields), id: 'local', timezone: 'Pacific/Auckland', synced: false, status: 'scheduled' };
+  cacheBooking(user.id, pending);
+  await assert.rejects(saveBooking({ rpc: async () => ({error: {code: 'PGRST205'}}) }, user, fields), /issb-bookings.sql/);
+  await assert.rejects(saveBooking({ rpc: async () => { throw new TypeError('Failed to fetch'); } }, user, fields), /connection/);
+  await assert.rejects(saveBooking(null, user, fields), /Unable to save/);
+  assert.equal(readBooking(user.id).id, 'local');
+  let calls = 0;
+  const client = { rpc: async (_, args) => {
+    calls++;
+    assert.equal(args.p_timezone, 'Pacific/Auckland');
+    assert.equal(args.p_starts_at, new Date(pending.startsAt).toISOString());
+    return { data: { ...pending, id: 'remote', synced: true } };
+  } };
+  assert.equal((await retryBookingSave(client, user, pending)).id, 'remote');
+  assert.equal(calls, 1);
+  cacheBooking(user.id, pending);
+  const remote = {...pending, id: 'remote', synced: true};
+  client.from = () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({data: remote}) }) }) });
+  assert.equal((await loadBooking(client, user.id)).synced, true);
+  cacheBooking(user.id, pending);
+  assert.equal((await retryBookingSave(client, user, pending, pending.startsAt + 1)).id, 'remote');
+  assert.equal(calls, 1, 'reconciliation must not recreate the reminder');
+  cacheBooking(user.id, pending);
+  client.from = () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({data: {...remote, startsAt: remote.startsAt + 60000}}) }) }) });
+  assert.equal((await loadBooking(client, user.id)).id, 'local');
+  await assert.rejects(retryBookingSave(client, user, pending, pending.startsAt), /Reschedule/);
 });
 function queue({ providerOk = true, current = true, updateError = false } = {}) {
   const updates = [], requests = [];

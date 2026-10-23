@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loginAccount, registerAccount, validateRegistration } from '../src/lib/registration.js';
 import { setRegistrationHandoff, takeRegistrationHandoff } from '../src/lib/registrationHandoff.js';
-const form = { fullName:'  Ahmad Bilal  ', email:'cadet@example.test', password:'example-test-only', origin:'http://localhost:5173', phoneProof:{id:'11111111-1111-4111-8111-111111111111',secret:'a'.repeat(64),phone:'+923001234567',email:'cadet@example.test',verified:true,expiresAt:Date.now()+600000} };
+const form = { fullName:'  Ahmad Bilal  ', email:'cadet@example.test', password:'example-test-only', origin:'http://localhost:5173' };
 test('registration sends name and credentials to auth and requests login confirmation redirect', async()=>{
  let request;
  const client={auth:{signUp:async data=>{request=data;return {data:{user:{id:'u1',identities:[{}]},session:null},error:null};}}};
  const result=await registerAccount(client,form);
- assert.deepEqual(request,{email:form.email,password:form.password,options:{data:{full_name:'Ahmad Bilal',phone_number:form.phoneProof.phone,phone_verification_id:form.phoneProof.id,phone_verification_secret:form.phoneProof.secret},emailRedirectTo:'http://localhost:5173/login'}});
+ assert.deepEqual(request,{email:form.email,password:form.password,options:{data:{full_name:'Ahmad Bilal'},emailRedirectTo:'http://localhost:5173/login'}});
  assert.equal(result.confirmationRequired,true);
 });
 test('confirmation-disabled signup still reports success without logging the main app in',async()=>{

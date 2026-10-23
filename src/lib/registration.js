@@ -1,5 +1,3 @@
-import { requirePhoneProof } from './phoneVerification.js';
-
 export function validateRegistration({ fullName, email, password, confirmPassword }) {
   if (typeof fullName !== 'string' || fullName.trim().length < 2 || fullName.trim().length > 80) {
     throw new Error('Enter your full name (2 to 80 characters).');
@@ -20,12 +18,11 @@ export function normalizeEmail(email) {
   return cleanEmail;
 }
 
-export async function registerAccount(client, { fullName, email, password, origin, phoneProof }) {
+export async function registerAccount(client, { fullName, email, password, origin }) {
   const registration = validateRegistration({ fullName, email, password, confirmPassword: password });
-  requirePhoneProof(phoneProof, phoneProof?.phone, registration.email);
   const { data, error } = await client.auth.signUp({
     email: registration.email, password: registration.password,
-    options: { data: { full_name: registration.fullName, phone_number: phoneProof.phone, phone_verification_id: phoneProof.id, phone_verification_secret: phoneProof.secret }, emailRedirectTo: `${origin}/login` },
+    options: { data: { full_name: registration.fullName }, emailRedirectTo: `${origin}/login` },
   });
   if (error) {
     if (error.code === 'over_email_send_rate_limit' || /email rate limit exceeded/i.test(error.message || '')) {

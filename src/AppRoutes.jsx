@@ -12,6 +12,7 @@ import PasswordRecoveryPage from './pages/PasswordRecoveryPage';
 import { useAuth } from './context/AuthContext';
 
 const ExamPage = lazy(() => import('./pages/ExamPage'));
+const AiInterviewPage = lazy(() => import('./pages/AiInterviewPage'));
 
 export default function AppRoutes() {
   const location = useLocation();
@@ -59,6 +60,7 @@ export default function AppRoutes() {
     <Route path="/profile" element={<ProtectedRoute><CadetProfile key={location.key} /></ProtectedRoute>} />
     <Route path="/progress" element={<ProtectedRoute><TestHistory key={`${user?.id}:${location.key}`} /></ProtectedRoute>} />
     <Route path="/issb" element={<ProtectedRoute><IssbPage key={`${user?.id}:${location.key}`} /></ProtectedRoute>} />
+    <Route path="/issb/interview" element={<ProtectedRoute><Suspense fallback={<div className="center-loading">Preparing your AI interview...</div>}><AiInterviewPage key={user?.id} /></Suspense></ProtectedRoute>} />
     <Route path="/issb/preview" element={<Navigate to="/issb" replace />} />
     <Route path="/test/:category" element={<ProtectedRoute><Suspense fallback={<div className="center-loading">Preparing your training workspace…</div>}><ExamPage /></Suspense></ProtectedRoute>} />
     <Route path="*" element={<Navigate to="/" replace />} />

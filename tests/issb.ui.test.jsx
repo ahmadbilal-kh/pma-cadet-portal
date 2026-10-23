@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import IssbPage from '../src/pages/IssbPage';
 import AppRoutes from '../src/AppRoutes';
 import InterviewReminder from '../src/components/InterviewReminder';
 import { cacheBooking, readBooking } from '../src/lib/issb';
 const auth = vi.hoisted(() => ({ user:{id:'u1',email:'cadet@example.test',user_metadata:{full_name:'Ahmad Bilal'}}, loading:false,refreshUser:vi.fn() }));
+const client = vi.hoisted(() => ({rpc: vi.fn()}));
 vi.mock('../src/context/AuthContext',()=>({useAuth:()=>auth}));
-vi.mock('../src/lib/supabase',()=>({supabase:{}}));
-const open=()=>render(<MemoryRouter initialEntries={['/issb']}><IssbPage /></MemoryRouter>);
-beforeEach(()=>{localStorage.clear(); window.scrollTo=vi.fn(); auth.user={id:'u1',email:'cadet@example.test',user_metadata:{full_name:'Ahmad Bilal'}};});
+vi.mock('../src/lib/supabase',()=>({supabase:client}));
+const open=()=>render(<MemoryRouter initialEntries={['/issb']}><Routes><Route path='/issb' element={<IssbPage />} /><Route path='/issb/interview' element={<h1>AI interview room</h1>} /></Routes></MemoryRouter>);
+beforeEach(()=>{localStorage.clear(); window.scrollTo=vi.fn(); auth.user={id:'u1',email:'cadet@example.test',user_metadata:{full_name:'Ahmad Bilal'}};
+  client.rpc.mockReset().mockImplementation(async (name, args) => ({ data: name === 'schedule_issb_interview'
+    ? {id:'remote',full_name:args.p_full_name,email:auth.user.email,starts_at:args.p_starts_at,timezone:args.p_timezone,status:'scheduled'}
+    : {...readBooking('u1'),status:args.p_status} }));
+});
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
 test('ISSB is open without initial tests and contains no locks, requirements or preview controls',async()=>{
   open();await screen.findByLabelText('Full name');
@@ -39,7 +44,7 @@ test('the designed calendar defaults to today and the digital time controls to 1
   fireEvent.click(screen.getByRole('button',{name:'Today'}));
   expect(screen.getByLabelText('Interview date').value).toBe(today);
 });
-test('a cadet can schedule without a phone and start only at the chosen time',async()=>{
+test('a cadet can open the AI room for a future interview without waiting',async()=>{
   open();await screen.findByLabelText('Full name');
   fireEvent.change(screen.getByLabelText('Interview date'),{target:{value:'2099-01-01'}});
   fireEvent.change(screen.getByLabelText('Interview minute'),{target:{value:'30'}});
@@ -47,20 +52,48 @@ test('a cadet can schedule without a phone and start only at the chosen time',as
   await screen.findByRole('heading',{name:'Your interview schedule'});
   expect(Object.hasOwn(readBooking('u1'),'phone')).toBe(false);
   expect(Object.hasOwn(readBooking('u1'),'country')).toBe(false);
-  expect(screen.getByRole('button',{name:'Start interview'}).disabled).toBe(true);
-  cleanup();vi.spyOn(Date,'now').mockReturnValue(new Date('2099-01-01T10:30').getTime());open();
-  await screen.findByRole('heading',{name:'Your interview schedule'});
+  expect(screen.getByRole('button',{name:'Start interview'}).disabled).toBe(false);
+  expect(screen.queryByText('The start button unlocks at your selected time.')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Start interview'}));
-  await screen.findByRole('heading',{name:/Introduce yourself/});
-  for(let i=0;i<5;i++)fireEvent.click(screen.getByRole('button',{name:'Next question'}));
-  fireEvent.click(screen.getByRole('button',{name:'Finish practice'}));
-  await screen.findByText('Practice completed');
-  expect(readBooking('u1').status).toBe('completed');
+  await screen.findByRole('heading',{name:'AI interview room'});
+  expect(client.rpc).toHaveBeenCalledTimes(1);
+  expect(readBooking('u1').status).toBe('scheduled');
 });
+test('a missed schedule opens the AI setup without starting a written session',async()=>{
+  cacheBooking('u1',{id:'past',status:'scheduled',fullName:'Ahmad Bilal',email:auth.user.email,startsAt:Date.now()-86400000,timezone:'UTC',synced:true});
+  open();fireEvent.click(await screen.findByRole('button',{name:'Start interview'}));
+  await screen.findByRole('heading',{name:'AI interview room'});
+  expect(client.rpc).not.toHaveBeenCalled();
+});
+
 test('old preview links redirect to the ordinary unlocked ISSB page',async()=>{
   render(<MemoryRouter initialEntries={['/issb/preview']}><AppRoutes /></MemoryRouter>);
   await screen.findByLabelText('Full name');
   expect(screen.queryByText('Development preview')).toBeNull();
+});
+test('existing local bookings have no yellow banner and can retry account saving', async()=>{
+  cacheBooking('u1',{id:'local',status:'scheduled',fullName:'Ahmad Bilal',email:auth.user.email,startsAt:Date.now()+86400000,timezone:'UTC',synced:false});
+  open(); await screen.findByRole('heading',{name:'Your interview schedule'});
+  expect(screen.queryByText(/Saved on this browser/)).toBeNull();
+  expect(document.querySelector('.issb-save-warning')).toBeNull();
+  client.rpc.mockResolvedValueOnce({error:{code:'PGRST205'}});
+  fireEvent.click(screen.getByRole('button',{name:'Save to account'}));
+  expect((await screen.findByRole('alert')).textContent).toContain('issb-bookings.sql');
+  expect(readBooking('u1').synced).toBe(false);
+  fireEvent.click(screen.getByRole('button',{name:'Save to account'}));
+  await screen.findByText('Your interview schedule is saved to your account.');
+  expect(readBooking('u1').synced).toBe(true);
+  expect(screen.queryByRole('button',{name:'Save to account'})).toBeNull();
+});
+test('missing account storage keeps the form and never announces a successful booking', async()=>{
+  client.rpc.mockResolvedValue({error:{code:'PGRST202'}});
+  open(); await screen.findByLabelText('Full name');
+  fireEvent.change(screen.getByLabelText('Interview date'),{target:{value:'2099-01-01'}});
+  fireEvent.submit(screen.getByRole('button',{name:'Schedule interview'}).closest('form'));
+  await screen.findByRole('alert');
+  expect(screen.queryByText(/Your mock interview is scheduled/)).toBeNull();
+  expect(screen.getByLabelText('Interview date').value).toBe('2099-01-01');
+  expect(readBooking('u1')).toBeNull();
 });
 test('in-app reminders disappear when the interview is completed',async()=>{
   const booking={id:'b1',status:'scheduled',fullName:'Ahmad Bilal',email:auth.user.email,startsAt:Date.now()+300000,timezone:'UTC',synced:false};
