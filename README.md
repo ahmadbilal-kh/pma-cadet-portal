@@ -4,13 +4,6 @@ A React application for PMA preparation, with cadet accounts, timed practice tes
 
 Independent preparation platform; not affiliated with Pakistan Military Academy or the Pakistan Army.
 
-## Use the public website
-
-**[Open CadetPrep](https://cadetprep-pma-portal.dusky-maple-8683.chatgpt.site)**
-
-Visitors can open this link, create an account, and log in from another device. They do not need to clone this repository, install Node.js, create a Supabase project, or configure an `.env` file. The hosted build connects to the portal's shared Supabase project using its public client configuration. The setup instructions below are for developers running their own copy.
-
-
 ## Features
 
 - Public landing page and a protected dashboard for signed-in cadets.
